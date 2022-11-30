@@ -1,13 +1,6 @@
 import 'cross-fetch/polyfill'
 import {promises} from 'fs'
-import {
-  ActionInterface,
-  GitHubResponse,
-  PrivacyLevel,
-  Sponsor,
-  Status,
-  Urls
-} from './constants'
+import {ActionInterface, PrivacyLevel, Sponsor, Status, Urls} from './constants'
 import {render} from 'mustache'
 import {extractErrorMessage, suppressSensitiveInformation} from './util'
 import {info} from '@actions/core'
@@ -15,24 +8,17 @@ import {info} from '@actions/core'
 /**
  * Fetches sponsors from the GitHub Sponsors API.
  */
-export async function getSponsors(
-  action: ActionInterface
-): Promise<GitHubResponse> {
-  try {
-    info(
-      `Fetching data from the GitHub API as ${
-        action.organization ? 'Organization' : 'User'
-      }… ⚽`
-    )
-
-    const query = `query { 
+export async function getSponsors(action: ActionInterface): Promise<Sponsor[]> {
+  function buildQuery(cursor: null): string {
+    const after = cursor ? `after: "${cursor}", ` : ''
+    return `query { 
       ${
         action.organization
           ? `organization (login: "${process.env.GITHUB_REPOSITORY_OWNER}")`
           : `viewer`
       } {
         login
-        sponsorshipsAsMaintainer(first: 1000, orderBy: {field: CREATED_AT, direction: ASC}) {
+        sponsorshipsAsMaintainer(first: 100, ${after}orderBy: {field: CREATED_AT, direction: ASC}) {
           totalCount
           pageInfo {
             endCursor
@@ -61,21 +47,49 @@ export async function getSponsors(
         }
       }
     }`
+  }
 
-    const data = await fetch(`${Urls.GITHUB_API}/graphql`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${action.token}`,
-        'Content-Type': 'application/json',
-        Accept: 'application/json'
-      },
-      body: JSON.stringify({
-        query
+  try {
+    info(
+      `Fetching data from the GitHub API as ${
+        action.organization ? 'Organization' : 'User'
+      }… ⚽`
+    )
+
+    let result = []
+    let morePages = true
+    let cursor = null
+
+    while (morePages) {
+      console.log('fetch start', {result, morePages, cursor}, action.organization)
+      const data = await fetch(`${Urls.GITHUB_API}/graphql`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${action.token}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/json'
+        },
+        body: JSON.stringify({
+          query: buildQuery(cursor)
+        })
       })
-    })
-
-    return data.json()
+      const response = await data.json()
+      const responseData = action.organization
+        ? response.data.organization
+        : response.data.viewer
+      if (responseData?.sponsorshipsAsMaintainer) {
+        cursor = responseData.sponsorshipsAsMaintainer.pageInfo.endCursor
+        result = result.concat(
+          responseData.sponsorshipsAsMaintainer.nodes || []
+        )
+        morePages =
+          responseData.sponsorshipsAsMaintainer.totalCount > result.length
+      }
+      console.log('fetch end', {result, morePages, cursor}, action.organization)
+    }
+    return result
   } catch (error) {
+    console.log(error)
     throw new Error(
       `There was an error with the GitHub API request: ${suppressSensitiveInformation(
         extractErrorMessage(error),
@@ -89,23 +103,17 @@ export async function getSponsors(
  * Generates the sponsorship template.
  */
 export function generateTemplate(
-  response: GitHubResponse,
+  sponsors: Sponsor[],
   action: ActionInterface
 ): string {
   let template = ``
 
   info('Generating template… ✨')
 
-  const data = action.organization
-    ? response.data.organization
-    : response.data.viewer
-
-  const sponsorshipsAsMaintainer = data?.sponsorshipsAsMaintainer
-
-  if (sponsorshipsAsMaintainer) {
+  if (sponsors.length) {
     /* Appends the template, the API call returns all users regardless of if they are hidden or not.
   In an effort to respect a users decision to be anonymous we filter these users out. */
-    let filteredSponsors = sponsorshipsAsMaintainer.nodes.filter(
+    let filteredSponsors = sponsors.filter(
       (user: Sponsor) =>
         user.privacyLevel !== PrivacyLevel.PRIVATE &&
         user.tier.monthlyPriceInCents >= action.minimum
@@ -134,7 +142,7 @@ export function generateTemplate(
 }
 
 export async function generateFile(
-  response: GitHubResponse,
+  sponsors: Sponsor[],
   action: ActionInterface
 ): Promise<Status> {
   try {
@@ -151,7 +159,7 @@ export async function generateFile(
       return Status.SKIPPED
     }
 
-    data = data.replace(regex, `$1${generateTemplate(response, action)}$2`)
+    data = data.replace(regex, `$1${generateTemplate(sponsors, action)}$2`)
 
     await promises.writeFile(action.file, data)
 
