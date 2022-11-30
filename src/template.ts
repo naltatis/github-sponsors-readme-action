@@ -61,7 +61,6 @@ export async function getSponsors(action: ActionInterface): Promise<Sponsor[]> {
     let cursor = null
 
     while (morePages) {
-      console.log('fetch start', {result, morePages, cursor}, action.organization)
       const data = await fetch(`${Urls.GITHUB_API}/graphql`, {
         method: 'POST',
         headers: {
@@ -85,11 +84,9 @@ export async function getSponsors(action: ActionInterface): Promise<Sponsor[]> {
         morePages =
           responseData.sponsorshipsAsMaintainer.totalCount > result.length
       }
-      console.log('fetch end', {result, morePages, cursor}, action.organization)
     }
     return result
   } catch (error) {
-    console.log(error)
     throw new Error(
       `There was an error with the GitHub API request: ${suppressSensitiveInformation(
         extractErrorMessage(error),
