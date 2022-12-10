@@ -62,8 +62,6 @@ export async function getSponsors(action: ActionInterface): Promise<Sponsor[]> {
 
     while (morePages) {
       const query = buildQuery(cursor)
-      // eslint-disable-next-line no-console
-      console.log(query)
       const data = await fetch(`${Urls.GITHUB_API}/graphql`, {
         method: 'POST',
         headers: {
@@ -106,7 +104,7 @@ export function generateTemplate(
 ): string {
   let template = ``
 
-  info('Generating template… ✨')
+  info(`Generating template with ${sponsors.length} sponsors … ✨`)
 
   if (sponsors.length) {
     /* Appends the template, the API call returns all users regardless of if they are hidden or not.
