@@ -58,7 +58,7 @@ export interface GitHubResponse {
     };
 }
 /** Types for the required action parameters. */
-export declare type RequiredActionParameters = Pick<ActionInterface, 'token'>;
+export type RequiredActionParameters = Pick<ActionInterface, 'token'>;
 export declare enum PrivacyLevel {
     PUBLIC = "PUBLIC",
     PRIVATE = "PRIVATE"
