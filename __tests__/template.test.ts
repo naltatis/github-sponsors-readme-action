@@ -627,6 +627,87 @@ describe('template', () => {
       expect(data).toEqual(nodes)
     })
 
+    it('should handle paged sponsor data', async () => {
+      const action = {
+        token: '123',
+        file: 'README.test.md',
+        template:
+          '<a href="https://github.com/{{{ login }}}"><img src="https://github.com/{{{ login }}}.png" width="60px" alt="" /></a>',
+        minimum: 6000,
+        maximum: 10000,
+        marker: 'sponsors',
+        organization: true,
+        fallback: 'There are no sponsors in this tier'
+      }
+
+      const sponsorOne = {
+        createdAt: '123',
+        privacyLevel: PrivacyLevel.PUBLIC,
+        tier: {
+          monthlyPriceInCents: 5000
+        },
+        sponsorEntity: {
+          name: 'Montezuma Ives',
+          login: 'MontezumaIves',
+          url: 'https://github.com/MontezumaIves',
+          websiteUrl: 'https://jamesiv.es'
+        }
+      }
+
+      const firstResponse = {
+        data: {
+          organization: {
+            sponsorshipsAsMaintainer: {
+              totalCount: 2,
+              pageInfo: {
+                endCursor: 'N9A'
+              },
+              nodes: [sponsorOne]
+            }
+          }
+        }
+      }
+
+      const sponsorTwo = {
+        createdAt: '123',
+        privacyLevel: PrivacyLevel.PUBLIC,
+        tier: {
+          monthlyPriceInCents: 5000
+        },
+        sponsorEntity: {
+          name: 'James Ives',
+          login: 'JamesIves',
+          url: 'https://github.com/JamesIves',
+          websiteUrl: 'https://jamesiv.es'
+        }
+      }
+
+      const secondResponse = {
+        data: {
+          organization: {
+            sponsorshipsAsMaintainer: {
+              totalCount: 2,
+              pageInfo: {
+                endCursor: null
+              },
+              nodes: [sponsorTwo]
+            }
+          }
+        }
+      }
+
+      nock(Urls.GITHUB_API)
+        .post('/graphql', /first: 100, orderBy/)
+        .reply(200, firstResponse)
+      nock(Urls.GITHUB_API)
+        .post('/graphql', /first: 100, after: \\"N9A\\", orderBy/)
+        .reply(200, secondResponse)
+
+      const data = await getSponsors(action)
+
+      expect(data).toEqual([sponsorOne, sponsorTwo])
+    })
+
     it('should appropriately handle an error', async () => {
       ;(info as jest.Mock).mockImplementationOnce(() => {
         throw new Error('Mocked throw')
