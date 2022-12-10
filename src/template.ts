@@ -61,6 +61,9 @@ export async function getSponsors(action: ActionInterface): Promise<Sponsor[]> {
     let cursor = null
 
     while (morePages) {
+      const query = buildQuery(cursor)
+      // eslint-disable-next-line no-console
+      console.log(query)
       const data = await fetch(`${Urls.GITHUB_API}/graphql`, {
         method: 'POST',
         headers: {
@@ -68,9 +71,7 @@ export async function getSponsors(action: ActionInterface): Promise<Sponsor[]> {
           'Content-Type': 'application/json',
           Accept: 'application/json'
         },
-        body: JSON.stringify({
-          query: buildQuery(cursor)
-        })
+        body: JSON.stringify({query})
       })
       const response = await data.json()
       const responseData = action.organization
